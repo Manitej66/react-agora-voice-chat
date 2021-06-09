@@ -1,21 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { Link } from "react-router-dom";
 import Loading from "@geist-ui/react/esm/loading";
 import Card from "@geist-ui/react/esm/card";
 import Tag from "@geist-ui/react/esm/tag";
+import { AuthContext } from "../AuthContext";
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { currentUser } = useContext(AuthContext);
 
   useEffect(() => {
     let l = [];
-    const unsub = onSnapshot(collection(db, "rooms"), (rooms) => {
+    const unsub = onSnapshot(collection(db, "rooms"), (room) => {
       setRooms([]);
-      rooms.docs.forEach((doc) => {
-        setRooms((prev) => [...prev, { ...doc.data(), key: doc.id }]);
+      room.docs.forEach((doc) => {
+        if (
+          !doc.data()?.private ||
+          (doc.data()?.private && doc.data()?.owner.uid == currentUser.uid)
+        ) {
+          setRooms((prev) => [...prev, { ...doc.data(), key: doc.id }]);
+        }
       });
       setLoading(false);
     });

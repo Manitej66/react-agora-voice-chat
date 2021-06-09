@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { useHistory, useLocation, useParams } from "react-router-dom";
-import { doc, updateDoc, onSnapshot } from "firebase/firestore";
+import { useEffect } from "react";
+import { useHistory, useParams } from "react-router-dom";
+import { doc, updateDoc, onSnapshot, getDoc } from "firebase/firestore";
 import { useState } from "react";
 import { db } from "../firebase";
 import Loading from "@geist-ui/react/esm/loading";
@@ -21,16 +21,14 @@ import Mic from "@geist-ui/react-icons/mic";
 import Radio from "@geist-ui/react-icons/radio";
 import Speaker from "@geist-ui/react-icons/speaker";
 import LogOut from "@geist-ui/react-icons/logOut";
+import Music from "@geist-ui/react-icons/music";
 
 let client = AgoraRTC.createClient({
-  mode: "live",
+  mode: "rtc",
   codec: "vp8",
 });
 
 client.init(process.env.REACT_APP_AGORA_KEY);
-client.setClientRole("host");
-
-// client.enableAudiostreamIndicator(); // Triggers the "volume-indicator" callback event every two seconds.
 
 let handleError = function (err) {
   console.log("Error: ", err);
@@ -38,7 +36,6 @@ let handleError = function (err) {
 
 const Join = () => {
   const { id } = useParams();
-  const loc = useLocation();
   const history = useHistory();
   const [load, setLoad] = useState(false);
   const [active, setActive] = useState([]);
@@ -58,11 +55,13 @@ const Join = () => {
     "high_quality_stereo",
   ]);
   const [audio_input, setAudio_input] = useState([]);
+  const [audio_output, setaudio_output] = useState([]);
+  const [hostId, setHostId] = useState("");
 
   const { currentUser } = useContext(AuthContext);
 
-  // Add video streams to the container.
   async function addVideoStream(elementId) {
+    console.log(elementId);
     let remoteContainer = document.getElementById("remote");
 
     // Creates a new div for every stream
@@ -73,29 +72,13 @@ const Join = () => {
     streamDiv.style.transform = "rotateY(180deg)";
     // Adds the div to the container.
     remoteContainer.appendChild(streamDiv);
-
-    // const members = await (await getDoc(doc(db, "rooms", id))).data().members;
-
-    // const exists = members.some((el) => el.streamId == elementId);
-
-    // const found = members.some((el) => el.uid == currentUser.uid);
-
-    // if (!exists && !found) {
-    //   updateDoc(doc(db, "rooms", id), {
-    //     members: arrayUnion({
-    //       uid: currentUser.uid,
-    //       pic: currentUser.photoURL,
-    //       name: currentUser.displayName,
-    //       streamId: elementId,
-    //     }),
-    //   }).catch((e) => console.log(e));
-    // }
   }
 
-  // Remove the video stream from the container.
   async function removeVideoStream(elementId) {
     let remoteDiv = document.getElementById(elementId);
-    if (remoteDiv) remoteDiv.parentNode.removeChild(remoteDiv);
+    if (remoteDiv) {
+      remoteDiv.parentNode.removeChild(remoteDiv);
+    }
   }
 
   const join = async () => {
@@ -107,6 +90,8 @@ const Join = () => {
     ).json();
     client.join(token, room, uid, async (userId) => {
       setStreamId(userId);
+      localStorage.setItem("ID", id);
+      localStorage.setItem("streamId", userId);
       let new_active = active.filter((user) => user.uid != currentUser.uid);
       new_active.push({
         uid: currentUser.uid,
@@ -126,66 +111,116 @@ const Join = () => {
           localStream.init(() => {
             localStream.play("me");
             client.publish(localStream, handleError);
-            client.on("stream-added", function (evt) {
-              client.subscribe(evt.stream, handleError);
-            });
-            client.on("stream-subscribed", function (evt) {
-              let stream = evt.stream;
-              let streamId = String(stream.getId());
-              addVideoStream(streamId);
-              stream.play(streamId);
-            });
-            client.on("connection-state-change", (evt) => {
-              setConn_state(evt.curState);
-            });
-            client.on("stream-removed", function (evt) {
-              let stream = evt.stream;
-              let streamId = String(stream.getId());
-              stream.close();
-              removeVideoStream(streamId);
-            });
-            client.on("peer-leave", function (evt) {
-              let stream = evt.stream;
-              let streamId = String(stream.getId());
-              stream.close();
-              removeVideoStream(streamId);
-            });
           }, handleError);
           setLoad(false);
           setConn_state(client.getConnectionState());
           setStreamId(userId);
         })
-        .catch((e) => console.log(e));
+        .catch((e) => setLoad(false));
     });
   };
 
   useEffect(() => {
     window.onbeforeunload = (event) => {
       const e = event || window.event;
-      // Cancel the event
+      console.log("hey");
       e.preventDefault();
       if (e) {
-        e.returnValue = ""; // Legacy method for cross browser support
+        e.returnValue = "";
+        console.log("ehy");
       }
-      return ""; // Legacy method for cross browser support
+      return "";
     };
 
-    AgoraRTC.getDevices((devices) => {
-      let l = [];
-      devices.map((device) => {
-        if (device.kind == "audioinput") {
-          l.push(device);
-        }
-      });
-      setAudio_input(l);
-    });
+    setstream(null);
 
-    console.log(stream_id);
     onSnapshot(doc(db, "rooms", id), (room) => {
       setActive(room.data()?.members);
       setRoom(room.data()?.room_name);
+      setHostId(room.data()?.owner.uid);
     });
-  }, [currentUser]);
+
+    AgoraRTC.getDevices((devices) => {
+      setAudio_input([]);
+      setaudio_output([]);
+      devices.forEach((device) => {
+        if (device.kind === "audioinput") {
+          setAudio_input((p) => [...p, device]);
+        } else if (device.kind === "audiooutput") {
+          setaudio_output((p) => [...p, device]);
+        }
+      });
+    });
+
+    client.on("stream-added", function (evt) {
+      client.subscribe(evt.stream, handleError);
+    });
+    client.on("stream-subscribed", function (evt) {
+      let stream = evt.stream;
+      let streamId = String(stream?.getId());
+      addVideoStream(streamId);
+      stream.play(streamId);
+    });
+    client.on("connection-state-change", (evt) => {
+      setConn_state(evt.curState);
+    });
+    client.on("stream-removed", async function (evt) {
+      let stream = evt.stream;
+      let streamId = String(stream?.getId());
+      stream.close();
+      const data = await getDoc(doc(db, "rooms", localStorage.getItem("ID")));
+
+      updateDoc(doc(db, "rooms", localStorage.getItem("ID")), {
+        members: data
+          .data()
+          ?.members.filter(
+            (member) =>
+              member.userId !== parseInt(localStorage.getItem("streamId"))
+          ),
+      })
+        .then(() => localStorage.removeItem("streamId"))
+        .catch((e) => console.log(e));
+      removeVideoStream(streamId);
+    });
+    client.on("peer-leave", async function (evt) {
+      let stream = evt.stream;
+      let streamId = String(stream.getId());
+      stream.close();
+      const data = await getDoc(doc(db, "rooms", localStorage.getItem("ID")));
+
+      updateDoc(doc(db, "rooms", localStorage.getItem("ID")), {
+        members: data
+          .data()
+          ?.members.filter(
+            (member) =>
+              member.userId !== parseInt(localStorage.getItem("streamId"))
+          ),
+      })
+        .then(() => localStorage.removeItem("streamId"))
+        .catch((e) => console.log(e));
+      removeVideoStream(streamId);
+    });
+
+    return () =>
+      client.leave(async () => {
+        if (localStorage.getItem("streamId")) {
+          const data = await getDoc(
+            doc(db, "rooms", localStorage.getItem("ID"))
+          );
+
+          updateDoc(doc(db, "rooms", localStorage.getItem("ID")), {
+            members: data
+              .data()
+              ?.members.filter(
+                (member) =>
+                  member.userId != parseInt(localStorage.getItem("streamId"))
+              ),
+          })
+            .then(() => localStorage.removeItem("streamId"))
+            .catch((e) => console.log(e));
+        }
+      });
+  }, []);
 
   if (load) return <Loading size="large">Joining</Loading>;
 
@@ -216,7 +251,7 @@ const Join = () => {
           </Text>
           <div id="me"></div>
           <div id="remote"></div>
-          <Grid.Container gap={0}>
+          <Grid.Container gap={0} style={{ maxHeight: "50vh" }}>
             {active.map((person, i) => (
               <Grid key={i} xs={8} key={person.uid}>
                 <div style={{ margin: "0 auto" }}>
@@ -224,6 +259,7 @@ const Join = () => {
                   <p style={{ textAlign: "center" }}>
                     {person?.name?.split(" ")[0]}
                   </p>
+                  <p>{person?.uid == hostId ? "Host" : "Participant"}</p>
                 </div>
               </Grid>
             ))}
@@ -255,7 +291,7 @@ const Join = () => {
                 value={volume}
                 onChange={(val) => {
                   setVolume(val);
-                  stream.setAudioVolume(val);
+                  stream.setAudioVolume(parseInt(val));
                 }}
               />
             </div>
@@ -291,6 +327,31 @@ const Join = () => {
                 content={() => (
                   <>
                     <Popover.Item title>
+                      <span>Select output device</span>
+                    </Popover.Item>
+                    {audio_output.map((d, i) => (
+                      <Popover.Item
+                        key={i}
+                        onClick={() =>
+                          stream.setAudioOutput(d.deviceId, () => {
+                            console.log("success");
+                          })
+                        }
+                      >
+                        {d.label}
+                      </Popover.Item>
+                    ))}
+                  </>
+                )}
+              >
+                <Speaker size={32} />
+              </Popover>
+              <Popover
+                placement="top"
+                enterDelay={0}
+                content={() => (
+                  <>
+                    <Popover.Item title>
                       <span>Select input device</span>
                     </Popover.Item>
                     {audio_input.map((d, i) => (
@@ -308,11 +369,12 @@ const Join = () => {
                   </>
                 )}
               >
-                <Speaker size={32} onClick={() => {}} />
+                <Music size={32} />
               </Popover>
               <Radio size={32} onClick={() => setState(true)} />
               <LogOut
                 size={32}
+                color="red"
                 onClick={() => {
                   client.leave(() => {
                     updateDoc(doc(db, "rooms", id), {
