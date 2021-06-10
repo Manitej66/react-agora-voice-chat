@@ -245,7 +245,7 @@ const Join = () => {
         </Modal.Content>
       </Modal>
       {conn_state == "CONNECTED" ? (
-        <>
+        <div>
           <Text h4 style={{ textTransform: "capitalize", textAlign: "center" }}>
             participants
           </Text>
@@ -259,13 +259,12 @@ const Join = () => {
                   <p style={{ textAlign: "center" }}>
                     {person?.name?.split(" ")[0]}
                   </p>
-                  <p>{person?.uid == hostId ? "Host" : "Participant"}</p>
                 </div>
               </Grid>
             ))}
           </Grid.Container>
           <Dot style={{ margin: "20px 0" }}>{conn_state}</Dot>
-        </>
+        </div>
       ) : (
         <Button
           onClick={join}
@@ -283,111 +282,97 @@ const Join = () => {
               bottom: 10,
               padding: 10,
               width: "90%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
-            <div style={{ marginBottom: 30 }}>
-              <p>Speaker Volume</p>
-              <Slider
-                value={volume}
-                onChange={(val) => {
-                  setVolume(val);
-                  stream.setAudioVolume(parseInt(val));
-                }}
-              />
+            <div>
+              {mute ? (
+                <MicOff
+                  color="red"
+                  onClick={() => {
+                    stream.unmuteAudio();
+                    setMute(false);
+                  }}
+                  size={32}
+                />
+              ) : (
+                <Mic
+                  onClick={() => {
+                    stream.muteAudio();
+                    setMute(true);
+                  }}
+                  size={32}
+                />
+              )}
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-              }}
+            <Popover
+              placement="top"
+              enterDelay={0}
+              content={() => (
+                <>
+                  <Popover.Item title>
+                    <span>Select output device</span>
+                  </Popover.Item>
+                  {audio_output.map((d, i) => (
+                    <Popover.Item
+                      key={i}
+                      onClick={() =>
+                        stream.setAudioOutput(d.deviceId, () => {
+                          console.log("success");
+                        })
+                      }
+                    >
+                      {d.label}
+                    </Popover.Item>
+                  ))}
+                </>
+              )}
             >
-              <div>
-                {mute ? (
-                  <MicOff
-                    color="red"
-                    onClick={() => {
-                      stream.unmuteAudio();
-                      setMute(false);
-                    }}
-                    size={32}
-                  />
-                ) : (
-                  <Mic
-                    onClick={() => {
-                      stream.muteAudio();
-                      setMute(true);
-                    }}
-                    size={32}
-                  />
-                )}
-              </div>
-              <Popover
-                placement="top"
-                enterDelay={0}
-                content={() => (
-                  <>
-                    <Popover.Item title>
-                      <span>Select output device</span>
+              <Speaker size={32} />
+            </Popover>
+            <Popover
+              placement="top"
+              enterDelay={0}
+              content={() => (
+                <>
+                  <Popover.Item title>
+                    <span>Select input device</span>
+                  </Popover.Item>
+                  {audio_input.map((d, i) => (
+                    <Popover.Item
+                      key={i}
+                      onClick={() =>
+                        stream.switchDevice("audio", d.deviceId, () => {
+                          console.log("success");
+                        })
+                      }
+                    >
+                      {d.label}
                     </Popover.Item>
-                    {audio_output.map((d, i) => (
-                      <Popover.Item
-                        key={i}
-                        onClick={() =>
-                          stream.setAudioOutput(d.deviceId, () => {
-                            console.log("success");
-                          })
-                        }
-                      >
-                        {d.label}
-                      </Popover.Item>
-                    ))}
-                  </>
-                )}
-              >
-                <Speaker size={32} />
-              </Popover>
-              <Popover
-                placement="top"
-                enterDelay={0}
-                content={() => (
-                  <>
-                    <Popover.Item title>
-                      <span>Select input device</span>
-                    </Popover.Item>
-                    {audio_input.map((d, i) => (
-                      <Popover.Item
-                        key={i}
-                        onClick={() =>
-                          stream.switchDevice("audio", d.deviceId, () => {
-                            console.log("success");
-                          })
-                        }
-                      >
-                        {d.label}
-                      </Popover.Item>
-                    ))}
-                  </>
-                )}
-              >
-                <Music size={32} />
-              </Popover>
-              <Radio size={32} onClick={() => setState(true)} />
-              <LogOut
-                size={32}
-                color="red"
-                onClick={() => {
-                  client.leave(() => {
-                    updateDoc(doc(db, "rooms", id), {
-                      members: active.filter(
-                        (member) => member.userId !== parseInt(stream_id)
-                      ),
-                    })
-                      .then(() => history.replace("/"))
-                      .catch((e) => console.log(e));
-                  });
-                }}
-              />
-            </div>
+                  ))}
+                </>
+              )}
+            >
+              <Music size={32} />
+            </Popover>
+            <Radio size={32} onClick={() => setState(true)} />
+            <LogOut
+              size={32}
+              color="red"
+              onClick={() => {
+                client.leave(() => {
+                  updateDoc(doc(db, "rooms", id), {
+                    members: active.filter(
+                      (member) => member.userId !== parseInt(stream_id)
+                    ),
+                  })
+                    .then(() => history.replace("/"))
+                    .catch((e) => console.log(e));
+                });
+              }}
+            />
           </div>
         </div>
       )}

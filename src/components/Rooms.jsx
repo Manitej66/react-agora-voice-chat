@@ -1,16 +1,26 @@
 import { useState, useEffect, useContext } from "react";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { Link } from "react-router-dom";
 import Loading from "@geist-ui/react/esm/loading";
 import Card from "@geist-ui/react/esm/card";
+import Spinner from "@geist-ui/react/esm/spinner";
 import Tag from "@geist-ui/react/esm/tag";
 import { AuthContext } from "../AuthContext";
+import Trash2 from "@geist-ui/react-icons/trash2";
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const { currentUser } = useContext(AuthContext);
+  const [load, setLoad] = useState(false);
+
+  const deleteRoom = async (id) => {
+    setLoad(true);
+    deleteDoc(doc(db, "rooms", id))
+      .then(() => setLoad(false))
+      .catch((e) => console.log(e));
+  };
 
   useEffect(() => {
     let l = [];
@@ -35,12 +45,36 @@ const Rooms = () => {
         <Loading size="large">loading..</Loading>
       ) : (
         rooms.map((room) => (
-          <Link key={room.key} to={`/join/${room.key}`}>
-            <Card hoverable={true} style={{ marginBottom: 14 }} width="100%">
+          <Card
+            hoverable={true}
+            key={room.key}
+            style={{ marginBottom: 14 }}
+            width="100%"
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <h4>{room.room_name}</h4>
-              <Tag type="lite">{room.members.length} members</Tag>
-            </Card>
-          </Link>
+              {room?.owner.uid == currentUser.uid &&
+                (load ? (
+                  <Spinner />
+                ) : (
+                  <div style={{ cursor: "pointer" }}>
+                    <Trash2 onClick={() => deleteRoom(room.key)} color="red" />
+                  </div>
+                ))}
+            </div>
+            <Tag type="lite">{room.members.length} members</Tag>
+            <Card.Footer>
+              <Link to={`/join/${room.key}`}>
+                <p>Join room</p>
+              </Link>
+            </Card.Footer>
+          </Card>
         ))
       )}
     </div>

@@ -15,7 +15,9 @@ const App = () => {
           <Page.Header style={{ padding: 0.1 }}>
             <Navbar />
           </Page.Header>
-          <Page.Content style={{ padding: 0, maxHeight: "80vh" }}>
+          <Page.Content
+            style={{ padding: 0, maxHeight: "80vh", overflow: "hidden" }}
+          >
             <PrivateRoute path="/" exact component={Home} />
             <PrivateRoute path="/join/:id" exact component={Join} />
             <Route path="/login" component={Login} />
