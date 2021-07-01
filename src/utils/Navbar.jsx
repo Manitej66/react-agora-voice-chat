@@ -16,10 +16,10 @@ const Navbar = () => {
           alignItems: "center",
         }}
       >
-        Clubhome 👋
+        Agora voice chat 👋
         <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
           <a
-            href="https://github.com/Manitej66/clubhouse-clone-react"
+            href="https://github.com/Manitej66/react-agora-voice-chat"
             style={{ cursor: "pointer" }}
           >
             <GitHub />
